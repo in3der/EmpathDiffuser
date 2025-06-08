@@ -1,0 +1,2 @@
+si_finetuning/
+*.pth\n*.ckpt\n*.pt\n*.bin\nsi_finetuning/\nsi_finetuning_2/\nmodels/
