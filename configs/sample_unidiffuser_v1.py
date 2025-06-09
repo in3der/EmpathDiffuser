@@ -22,7 +22,8 @@ def get_config():
     )
 
     config.caption_decoder = d(
-        pretrained_path="models/caption_decoder.pth",
+        # pretrained_path="models/caption_decoder.pth",
+        pretrained_path = 'models/caption_decoder_epoch5.pth',
         hidden_dim=config.get_ref('text_dim')
     )
 
@@ -40,14 +41,15 @@ def get_config():
         drop_rate=0.,
         attn_drop_rate=0.,
         mlp_time_embed=False,
-        text_dim=config.get_ref('text_dim'),
+        text_dim=config.get_ref('text_dim'),    # 64
         num_text_tokens=77,
-        clip_img_dim=config.get_ref('clip_img_dim'),
+        clip_img_dim=config.get_ref('clip_img_dim'),    # 512
         use_checkpoint=True
     )
 
     config.sample = d(
-        sample_steps=50,
+        sample_steps=200,
+        #sample_steps=500,
         scale=7.,
         t2i_cfg_mode='true_uncond'
     )

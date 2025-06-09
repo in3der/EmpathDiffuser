@@ -12,6 +12,49 @@ import os
 import glob
 import einops
 import torchvision.transforms.functional as F
+import json
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import torch.nn as nn
+
+"""
+데이터 포맷 예시 
+dataset = DialogueImageTextDataset(
+    json_path="/home/ivpl-d29/dataset/AvaMERG/train_finetune.json",
+    image_root="/home/ivpl-d29/dataset/AvaMERG/image_v5_0_64/"
+)
+"""
+"""
+image_root/
+├── img001.png
+├── img001_transformed.png
+├── img002.png
+├── img002_transformed.png
+└── ...
+
+json 파일은 하나의 리스트 
+
+[
+  {
+    "input_image": "img001.png",
+    "input_text": "이 강아지를 고양이처럼 바꿔줘.",
+    "output_image": "img001_transformed.png",
+    "output_text": "고양이처럼 생긴 모습이에요."
+  },
+  {
+    "input_image": "img002.png",
+    "input_text": "이 자동차를 미래형으로 바꿔줘.",
+    "output_image": "img002_transformed.png",
+    "output_text": "이건 미래 자동차처럼 보여요."
+  }
+]
+
+"""
+
+import random
+
+
+
 
 
 class UnlabeledDataset(Dataset):
@@ -39,8 +82,6 @@ class LabeledDataset(Dataset):
     def __getitem__(self, item):
         return self.dataset[item], self.labels[item]
 
-
-"""
 class CFGDataset(Dataset):  # for classifier free guidance
     def __init__(self, dataset, p_uncond, empty_token):
         self.dataset = dataset
@@ -55,35 +96,6 @@ class CFGDataset(Dataset):  # for classifier free guidance
         if random.random() < self.p_uncond:
             y = self.empty_token
         return x, y
-"""
-# 250523 - clip 임베딩  추가한 버전
-class CFGDataset(Dataset):  # with CLIP feature support
-    def __init__(self, dataset, p_uncond, empty_token, clip_preprocess, clip_model):
-        self.dataset = dataset
-        self.p_uncond = p_uncond
-        self.empty_token = empty_token
-        self.clip_model = clip_model
-        self.clip_preprocess = clip_preprocess
-        clip_model.eval()  # 혹은 필요 시 .requires_grad_(False)
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def __getitem__(self, item):
-        img, label = self.dataset[item]
-
-        # CLIP 전처리 및 임베딩 생성
-        img_pil = transforms.ToPILImage()(img)  # tensor → PIL
-        img_clip = self.clip_preprocess(img_pil).unsqueeze(0)  # [1, 3, 224, 224]
-        with torch.no_grad():
-            clip_feature = self.clip_model.encode_image(img_clip).squeeze(0).to('cuda')  # [D]
-
-        if random.random() < self.p_uncond:
-            label = self.empty_token
-
-        return img, clip_feature, label
-
-
 
 
 class DatasetFactory(object):
@@ -145,8 +157,7 @@ class CIFAR10(DatasetFactory):
          shape: 3 * 32 * 32
     """
 
-    #def __init__(self, path, random_flip=False, cfg=False, p_uncond=None):
-    def __init__(self, path, random_flip=False, cfg=False, p_uncond=None, clip_preprocess=None): # ★ 추가 인자
+    def __init__(self, path, random_flip=False, cfg=False, p_uncond=None):
         super().__init__()
 
         transform_train = [transforms.ToTensor(), transforms.Normalize(0.5, 0.5)]
@@ -169,10 +180,8 @@ class CIFAR10(DatasetFactory):
         if cfg:  # classifier free guidance
             assert p_uncond is not None
             print(f'prepare the dataset for classifier free guidance with p_uncond={p_uncond}')
-            #self.train = CFGDataset(self.train, p_uncond, self.K)
+            self.train = CFGDataset(self.train, p_uncond, self.K)
 
-            clip_text_model = libs.clip.FrozenCLIPEmbedder(device='cuda')
-            self.train = CFGDataset(self.train, p_uncond, self.K, clip_preprocess, clip_model=clip_text_model)  # ★ 추가 인자
 
     @property
     def data_shape(self):
@@ -564,6 +573,203 @@ class MSCOCO256Features(DatasetFactory):  # the moments calculated by Stable Dif
         return f'assets/fid_stats/fid_stats_mscoco256_val.npz'
 
 
+
+
+
+# ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
+"""
+class DialogueSubDataset(Dataset):
+    def __init__(self, json_path, image_root, random_flip=False, p_uncond=None):
+        with open(json_path, 'r') as f:
+            self.samples = json.load(f)
+
+        self.image_root = image_root
+        self.p_uncond = p_uncond
+
+        transform = [transforms.ToTensor(), transforms.Normalize([0.5]*3, [0.5]*3)]
+        if random_flip:
+            transform.insert(0, transforms.RandomHorizontalFlip())
+        self.transform = transforms.Compose(transform)
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        item = self.samples[idx]
+        input_img = Image.open(os.path.join(self.image_root, item['input_image'])).convert("RGB")
+        output_img = Image.open(os.path.join(self.image_root, item['output_image'])).convert("RGB")
+
+        input_img = self.transform(input_img)
+        output_img = self.transform(output_img)
+
+        input_text = item['input_text']
+        output_text = item['output_text']
+
+        if self.p_uncond is not None and random.random() < self.p_uncond:
+            input_text = ""
+
+        return {
+            "input_img": input_img,
+            "input_text": input_text,
+            "output_img": output_img,
+            "output_text": output_text
+        }
+
+
+"""
+from utils import load_models  # 클립/오토인코더/프로젝션 등 불러오는 함수
+class DialogueSubDataset(Dataset):
+    def __init__(self, json_path, image_root, autoencoder, clip_img_model, clip_text_model,
+                 clip_preprocess, device, random_flip=False, p_uncond=None, linear_proj=None):
+        print("[DEBUG] 데이터셋 init 시작")
+
+        with open(json_path, 'r') as f:
+            self.samples = json.load(f)
+        print("[DEBUG] json 파일 로딩 완료, 샘플 수:", len(self.samples))
+
+        self.image_root = image_root
+        self.p_uncond = p_uncond
+        self.device = device
+
+
+        print("[DEBUG] autoencoder 로딩 시작")
+        from configs import finetune_uvit_config
+        config = finetune_uvit_config.get_config()
+        self.autoencoder = load_models(config)
+
+        # dataset 설정에 넣어주기 (이미 잘 하셨음)
+        config.dataset.autoencoder = self.autoencoder
+        print("[DEBUG] autoencoder 로딩 완료")
+
+        #self.autoencoder.to(device)
+        self.autoencoder = autoencoder.eval()
+        print("[DEBUG] autoencoder device 이동 및 eval 설정 완료")
+
+        self.clip_img_model = clip_img_model.eval()
+        self.clip_text_model = clip_text_model.eval()
+        print("[DEBUG] CLIP 모델 eval 완료")
+
+        self.linear_proj = linear_proj  # 학습 가능한 레이어
+        #self.linear_proj = nn.Linear(768, 64).to(device)  # 768 → 64 projection
+        print("[DEBUG] Linear projection 생성 완료")
+
+        self.clip_preprocess = clip_preprocess
+
+        transform = [transforms.ToTensor(), transforms.Normalize([0.5]*3, [0.5]*3)]
+        if random_flip:
+            transform.insert(0, transforms.RandomHorizontalFlip())
+        self.transform = transforms.Compose(transform)
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        print("[DEBUG] get item 진입 ")
+        item = self.samples[idx]
+        print(f"[DEBUG] Loading sample {idx}: {item['input_image']} -> {item['output_image']}")
+
+        # Load and preprocess input image
+        input_img_pil = Image.open(os.path.join(self.image_root, item['input_image'])).convert("RGB")
+        print(f"[DEBUG] Loaded input image {item['input_image']}")
+        input_img_tensor = self.transform(input_img_pil).to(self.device)  # (3, 64, 64)
+        input_img_clip = self.clip_preprocess(input_img_pil).unsqueeze(0).to(self.device)  # (1, 3, 224, 224)
+        print(f"[DEBUG] Transformed input image")
+
+        # Load and preprocess output image (필요하면 latent도 같이 만듦)
+        output_img_pil = Image.open(os.path.join(self.image_root, item['output_image'])).convert("RGB")
+        output_img_tensor = self.transform(output_img_pil).to(self.device)
+        print(f"[DEBUG] Loaded output image")
+
+        input_text = item['input_text']
+        output_text = item['output_text']
+
+        if self.p_uncond is not None and random.random() < self.p_uncond:
+            input_text = ""
+
+        # 1) Autoencoder latent (z)
+        with torch.no_grad():
+            #z = self.autoencoder.encode(input_img_tensor.unsqueeze(0)).latent_dist.mean  # (1, 4, 64, 64)
+            moments = self.autoencoder.encode_moments(input_img_tensor.unsqueeze(0))
+            # moments: [mean, logvar]
+            z = moments[0]  # mean
+
+            print(f"🦖🦖🦖🦖🦖[DEBUG] Encoding type: {type(z)}🦖🦖🦖🦖🦖🦖")
+            print(f"[DEBUG] Encoding shape: {z.shape if hasattr(z, 'shape') else 'N/A'}")
+
+            #z = z.squeeze(0)
+
+            print(f"🦖🦖🦖🦖🦖[DEBUG] Encoding type: {type(z)}🦖🦖🦖🦖🦖🦖")
+            print(f"[DEBUG] Encoding shape: {z.shape if hasattr(z, 'shape') else 'N/A'}")
+        print(f"[DEBUG] Encoded image with autoencoder")
+
+        # 2) CLIP 이미지 임베딩
+        with torch.no_grad():
+            # clip_img = self.clip_img_model.encode_image(input_img_clip)  # (1, 512)
+            # clip_img = clip_img.unsqueeze(1).squeeze(0)  # (1, 512)
+            clip_img = self.clip_img_model.encode_image(input_img_clip).squeeze(0)  # (512,)
+        print(f"[DEBUG] CLIP img embedding done")
+
+        # 3) CLIP 텍스트 임베딩 + projection
+        # tokens = self.clip_text_model.tokenize([input_text]).to(self.device)  # (1, 77)
+        # #self.clip. FrozenCLIPEmbedder()
+        # # 기존 잘못된 방식 (오류 발생)
+        # tokens = self.clip_text_model.tokenize([input_text]).to(self.device)
+        # with torch.no_grad():
+        #     clip_text_feat = self.clip_text_model.encode_text(tokens)
+
+        # ✅ 수정된 방식
+        with torch.no_grad():
+            clip_text_feat = self.clip_text_model.encode([input_text])  # (1, 768)
+
+        #with torch.no_grad():
+        #    clip_text_feat = self.clip_text_model.encode_text(tokens)  # (1, 77, 768)
+        print(f"[DEBUG] input_text : {input_text}")
+        print(f"[DEBUG] Projected text latent")
+
+        # projection은 학습 가능하므로 no_grad 아님
+        text_latent = self.linear_proj(clip_text_feat)  # (1, 77, 64)
+        text_latent = text_latent.squeeze(0)
+
+        return {
+            "z": z,  # (4,64,64)
+            "clip_img": clip_img,  # (1,512)
+            "text": text_latent,  # (77,64)
+            "output_img": output_img_tensor,
+            "output_text": output_text,
+        }
+
+class DialogueDataset(DatasetFactory):
+    def __init__(self, train_json, test_json, image_root, autoencoder, clip_img_model,
+                 clip_text_model, clip_preprocess, device, linear_proj, p_uncond=None):
+        super().__init__()
+        self.train = DialogueSubDataset(
+            train_json, image_root, autoencoder, clip_img_model,
+            clip_text_model, clip_preprocess, device,
+            random_flip=True, p_uncond=p_uncond, linear_proj=linear_proj
+        )
+        self.test = DialogueSubDataset(
+            test_json, image_root, autoencoder, clip_img_model,
+            clip_text_model, clip_preprocess, device,
+            random_flip=False, p_uncond=None, linear_proj=linear_proj
+        )
+        print(f"[DialogueDataset] Train: {len(self.train)} samples, Test: {len(self.test)} samples")
+
+    @property
+    def data_shape(self):
+        return 3, 64, 64
+
+    @property
+    def fid_stat(self):
+        return f'assets/fid_stats/fid_stats_imagenet64_guided_diffusion.npz'
+
+
+
+
+
+
+
+
+
 def get_dataset(name, **kwargs):
     if name == 'cifar10':
         return CIFAR10(**kwargs)
@@ -577,5 +783,7 @@ def get_dataset(name, **kwargs):
         return CelebA(**kwargs)
     elif name == 'mscoco256_features':
         return MSCOCO256Features(**kwargs)
+    elif name == 'avamerg':
+        return DialogueDataset(**kwargs)
     else:
         raise NotImplementedError(name)

@@ -117,6 +117,7 @@ class TrainingManager:
 
                 if step % self.config.train.eval_interval == 0:
                     self.wandb_sampler.sample_and_log_images(model, self.scheduler, step, device=self.device)
+                    self.sample_ti2ti_step(model, step)
 
                 if step % self.config.train.save_interval == 0 and step > 0:
                     self.save_checkpoint(model, ema_model, optimizer, step)
@@ -126,6 +127,95 @@ class TrainingManager:
 
         pbar.close()
         self.save_checkpoint(model, ema_model, optimizer, step)
+
+    def sample_ti2ti_step(self, model, step: int):
+        from configs.finetune_uvit_config import get_config
+        config = get_config()
+        model.eval()
+
+        num_samples = self.config.sample.n_samples
+        device = self.device
+        text_dim = self.config.nnet.text_dim
+        clip_dim = self.config.nnet.clip_img_dim
+        z_shape = (4, 64, 64)  # AvaMERG latent image shape
+
+        # random text latent → image → text 재구성
+        text_latent = torch.randn(num_samples, 77, text_dim, device=device)
+        clip_noise = torch.randn(num_samples, clip_dim, device=device)
+        img_noise = torch.randn(num_samples, *z_shape, device=device)
+
+        from dpm_solver_pp import NoiseScheduleVP, DPM_Solver
+        betas = self.scheduler._betas
+        noise_schedule = NoiseScheduleVP(schedule='discrete', betas=torch.tensor(betas).float().to(device))
+
+        N = len(betas)
+
+        def combine(z, clip_img):
+            return torch.cat([z.flatten(1), clip_img], dim=1)
+
+        def split(x):
+            z_dim = z_shape[0] * z_shape[1] * z_shape[2]
+            z = x[:, :z_dim].view(-1, *z_shape)
+            clip = x[:, z_dim:]
+            return z, clip
+
+        def t2i_nnet(x, t, text):
+            z, clip = split(x)
+            t_img = t
+            t_text = torch.zeros_like(t)
+
+            pred_z, pred_clip, _ = model(
+                img=z, clip_img=clip, text=text,
+                t_img=t_img, t_text=t_text,
+                data_type=torch.full_like(t_img, 2)
+            )
+            return combine(pred_z, pred_clip)
+
+        def i2t_nnet(x, t, z, clip):
+            t_img = torch.zeros_like(t)
+            t_text = t
+
+            _, _, pred_text = model(
+                img=z, clip_img=clip, text=x,
+                t_img=t_img, t_text=t_text,
+                data_type=torch.full_like(t, 2)
+            )
+            return pred_text
+
+        # text → image
+        x_init = combine(img_noise, clip_noise)
+
+        dpm_solver_i = DPM_Solver(
+            model_fn=lambda x, t_cont: t2i_nnet(x, t_cont * N, text_latent),
+            noise_schedule=noise_schedule,
+            predict_x0=True, thresholding=False
+        )
+        with torch.no_grad():
+            x_sampled = dpm_solver_i.sample(x_init, steps=self.config.sample.sample_steps, eps=1. / N, T=1.)
+            z_gen, clip_gen = split(x_sampled)
+
+        # image → text
+        dpm_solver_t = DPM_Solver(
+            model_fn=lambda x, t_cont: i2t_nnet(x, t_cont * N, z_gen, clip_gen),
+            noise_schedule=noise_schedule,
+            predict_x0=True, thresholding=False
+        )
+        text_sampled = dpm_solver_t.sample(text_latent, steps=self.config.sample.sample_steps, eps=1. / N, T=1.)
+
+        # wandb logging
+        from libs.caption_decoder import CaptionDecoder
+        caption_decoder = CaptionDecoder(device=self.device, pretrained_path=config.caption_decoder)
+
+        for idx, cap in enumerate(caption_decoder):
+            wandb.log({f"ti2ti/sample_{idx}": cap}, step=step)
+
+        if self.wandb_sampler.autoencoder is not None:
+            decoded_imgs = self.wandb_sampler._decode_latents(z_gen)
+            wandb_images = [
+                wandb.Image(self.wandb_sampler.to_pil(img.clamp(0, 1)), caption=f"Sample {idx}")
+                for idx, img in enumerate(decoded_imgs)
+            ]
+            wandb.log({"ti2ti/generated_images": wandb_images}, step=step)
 
 
 def main():

@@ -1,5 +1,13 @@
 import ml_collections
+import libs.clip
+import sys
+import os
+sys.path.append(os.path.abspath('/home/ivpl-d29/sichoi/Emo/unidiffuser/si_finetuning'))
+import clip
+import torch.nn as nn
+device = "cuda"
 
+clip_img_model, clip_preprocess = clip.load("ViT-B/32", device=device)
 
 def d(**kwargs):
     """Helper of creating a config dict."""
@@ -28,7 +36,8 @@ def get_config():
 
     config.train = d(
         n_steps=500000,
-        batch_size=1024,
+        #batch_size=1024,
+        batch_size=2,
         mode='cond',
         log_interval=10,
         eval_interval=5000,
@@ -67,11 +76,34 @@ def get_config():
         use_checkpoint=True
     )
 
+    # ⭐CLIP 텍스트 인코더 로딩 (고정된 사전학습 모델)
+    clip_text_model = libs.clip.FrozenCLIPEmbedder(device=device)
+    clip_text_model.eval()
+    clip_text_model.to(device)
+
+    # ⭐Autoencoder 모델 로딩 (이미지 latent 추출용)
+    autoencoder = libs.autoencoder.get_model('/home/ivpl-d29/sichoi/Emo/unidiffuser/models/autoencoder_kl.pth')
+    autoencoder.to(device)
+
+    # ⭐CLIP 이미지 인코더 로딩 (OpenAI의 CLIP 모델)
+    clip_img_model, clip_img_model_preprocess = clip.load("ViT-B/32", device=device, jit=False)
+
+    linear_proj = nn.Linear(768, config.text_dim).to(device)  # 768 → 64 projection
+
     config.dataset = d(
-        name='cifar10',
-        path='/home/ivpl-d29/dataset/cifar10',
-        cfg=True,
-        p_uncond=0.15
+        name='avamerg',
+        train_json="/home/ivpl-d29/dataset/AvaMERG/train_finetune.json",
+        test_json="/home/ivpl-d29/dataset/AvaMERG/test_finetune.json",
+        image_root='/home/ivpl-d29/dataset/AvaMERG/image_v5_0_64',
+        #cfg=True,
+        p_uncond=0.15,
+        #clip_preprocess=clip_preprocess  # ★ 이걸 전달해야 한다
+        autoencoder=autoencoder,
+        clip_img_model=clip_img_model,
+        clip_text_model=clip_text_model,
+        linear_proj=linear_proj,
+        clip_preprocess=clip_img_model_preprocess,
+        device='cuda',
     )
 
     config.sample = d(

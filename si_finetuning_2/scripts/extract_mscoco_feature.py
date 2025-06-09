@@ -3,7 +3,7 @@ import os
 import numpy as np
 import libs.autoencoder
 import libs.clip
-from datasets import MSCOCODatabase
+from ..finetune_datasets import MSCOCODatabase
 import argparse
 from tqdm import tqdm
 

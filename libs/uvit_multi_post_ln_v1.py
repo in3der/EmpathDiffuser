@@ -179,7 +179,7 @@ class UViT(nn.Module):
             nn.Linear(4 * embed_dim, embed_dim),
         ) if mlp_time_embed else nn.Identity()
 
-        self.text_embed = nn.Linear(text_dim, embed_dim)
+        self.text_embed = nn.Linear(text_dim, embed_dim)    # 64 -> 768
         self.text_out = nn.Linear(embed_dim, text_dim)
 
         self.clip_img_embed = nn.Linear(clip_img_dim, embed_dim)
@@ -214,7 +214,8 @@ class UViT(nn.Module):
         trunc_normal_(self.pos_embed, std=.02)
         self.apply(self._init_weights)
 
-        self.token_embedding = nn.Embedding(2, embed_dim)
+        #self.token_embedding = nn.Embedding(2, embed_dim)
+        self.token_embedding = nn.Embedding(3, embed_dim)   # sampling용 token 개수 3으로 바꿈  token_embedding.weight
         self.pos_embed_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
 
     def _init_weights(self, m):

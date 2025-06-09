@@ -303,16 +303,16 @@ class TrainingManager:
         """로깅 설정"""
         if self.accelerator.is_main_process:
             wandb.init(
-                dir=os.path.abspath(self.config.workdir),
+                dir=os.path.abspath('/wandb'),
                 project=f'uvit_finetune_{self.config.dataset.name}',
                 config=self.config.to_dict(),
-                name=self.config.hparams,
+                name='finetune_avamerg',
                 job_type='finetune',
                 mode='online'
             )
             utils.set_logger(
                 log_level='info',
-                fname=os.path.join(self.config.workdir, 'output.log')
+                fname=os.path.join('output.log')
             )
             logging.info("훈련 설정:")
             logging.info(self.config)
@@ -448,6 +448,7 @@ class TrainingManager:
 
 def main():
     """메인 함수"""
+
     try:
         # 설정 로드
         from configs import finetune_uvit_config

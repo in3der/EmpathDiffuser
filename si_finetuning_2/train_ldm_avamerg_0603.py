@@ -1,32 +1,25 @@
 """
 U-ViT 멀티모달 파인튜닝 스크립트
-================================
+===========================================
 
-이 모듈은 사전 훈련된 U-ViT 모델을 멀티모달 데이터셋으로 파인튜닝하기 위한
-전체 파이프라인을 제공합니다.
-
-주요 기능:
-- 멀티모달 손실 함수 (LUViT)
-- DPM Solver를 이용한 샘플링
-- EMA 모델 업데이트
-- FID 평가 메트릭
-
-이거는 기존 코드 정리하고 npy 데이터셋 적용 전 
-
+사전 훈련된 U-ViT 모델을 멀티모달 데이터셋으로 파인튜닝하기 위한
+전체 파이프라인 (NPY 데이터셋 지원)
 """
 
 import os
 import logging
 import tempfile
 from pathlib import Path
-from typing import Dict, Tuple, Optional, Any
+from typing import Dict, Tuple, Optional, Any, List
 from dataclasses import dataclass
+import copy
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import wandb
 import numpy as np
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
 import ml_collections
 import accelerate
@@ -34,45 +27,93 @@ from torchvision.utils import make_grid, save_image
 
 # 프로젝트 내부 모듈
 from libs.uvit_multi_post_ln_v1 import UViT
-from finetune_datasets import get_dataset
 from dpm_solver_pp import NoiseScheduleVP, DPM_Solver
 from tools.fid_score import calculate_fid_given_paths
 import utils
 import libs.autoencoder
+import torch.multiprocessing as mp
 
 
-@dataclass
-class TrainingConfig:
-    """훈련 설정을 위한 데이터클래스"""
-    batch_size: int = 16
-    learning_rate: float = 1e-4
-    weight_decay: float = 0.01
-    n_steps: int = 10000
-    log_interval: int = 100
-    eval_interval: int = 1000
-    save_interval: int = 2000
-    grad_clip: float = 1.0
-    ema_rate: float = 0.9999
+class NPYDataset(Dataset):
+    """NPY 파일로부터 멀티모달 데이터를 로드하는 데이터셋"""
+
+    def __init__(self, npy_root: str, linear_proj: nn.Module = None):
+        """
+        NPY 데이터셋 초기화
+
+        Args:
+            npy_root: NPY 파일들이 저장된 루트 디렉토리
+            linear_proj: 텍스트 특징 차원 변환용 선형 투영 모델
+        """
+        self.npy_root = Path(npy_root)
+        self.linear_proj = linear_proj
+
+        # NPY 파일 목록 수집
+        self.npy_files = list(self.npy_root.glob("*.npy"))
+        if not self.npy_files:
+            raise ValueError(f"NPY 파일을 찾을 수 없습니다: {npy_root}")
+
+        logging.info(f"총 {len(self.npy_files)}개의 NPY 파일 발견")
+
+        # 첫 번째 파일로 데이터 형태 확인
+        sample_data = np.load(self.npy_files[0], allow_pickle=True).item()
+        self._log_data_shapes(sample_data)
+
+    def _log_data_shapes(self, sample_data: dict):
+        """샘플 데이터의 형태 로깅"""
+        for key, value in sample_data.items():
+            if isinstance(value, np.ndarray):
+                logging.info(f"[샘플] {key} shape: {value.shape}")
+
+    def __len__(self) -> int:
+        return len(self.npy_files)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        데이터 아이템 반환
+
+        Returns:
+            img_latent: 이미지 잠재 변수 [4, 64, 64]
+            clip_feat: CLIP 이미지 특징 [512]
+            text_latent: 텍스트 잠재 변수 [77, 64] (linear projection 적용 후)
+        """
+        try:
+            # NPY 파일 로드
+            data = np.load(self.npy_files[idx], allow_pickle=True).item()
+
+            # 데이터 추출 (output 데이터 사용)
+            img_latent = torch.from_numpy(data['output_img_latent']).float()  # [4, 64, 64]
+            clip_feat = torch.from_numpy(data['output_clip_feat']).float()    # [512]
+            text_latent = torch.from_numpy(data['output_text_latent']).float() # [77, 768]
+
+            # image latent: z-score 정규화
+            img_latent = (img_latent - img_latent.mean()) / img_latent.std()
+            # clip_feat, text_latent: L2 정규화
+            clip_feat = F.normalize(clip_feat, dim=-1)
+            text_latent = F.normalize(text_latent, dim=-1)
+
+
+            # # 텍스트 특징 차원 변환 (768 -> 64)
+            # if self.linear_proj is not None:
+            #     self.linear_proj = self.linear_proj.cpu()
+            #     with torch.no_grad():
+            #         text_latent = self.linear_proj(text_latent.cpu()).cpu()
+
+            return img_latent, clip_feat, text_latent
+
+        except Exception as e:
+            logging.error(f"데이터 로드 실패 (파일: {self.npy_files[idx]}): {e}")
+            # 에러 발생 시 첫 번째 파일로 대체
+            return self.__getitem__(0)
 
 
 class NoiseScheduler:
-    """
-    확산 모델을 위한 노이즈 스케줄러
-
-    Stable Diffusion 베타 스케줄을 사용하여 노이즈를 관리합니다.
-    """
+    """확산 모델을 위한 노이즈 스케줄러"""
 
     def __init__(self, linear_start: float = 0.00085,
                  linear_end: float = 0.0120,
                  n_timestep: int = 1000):
-        """
-        노이즈 스케줄러 초기화
-
-        Args:
-            linear_start: 선형 시작값
-            linear_end: 선형 끝값  
-            n_timestep: 타임스텝 개수
-        """
+        """노이즈 스케줄러 초기화"""
         self._betas = self._create_beta_schedule(linear_start, linear_end, n_timestep)
         self.betas = np.append(0., self._betas)
         self.alphas = 1. - self.betas
@@ -105,33 +146,29 @@ class NoiseScheduler:
 
         return skip_alphas, skip_betas
 
-    def sample_multimodal(self, x0: torch.Tensor, y0: torch.Tensor) -> Tuple:
-        """
-        멀티모달 샘플링 수행
+    def sample_multimodal(self, x_img: torch.Tensor, x_clip: torch.Tensor, y_text: torch.Tensor) -> Tuple:
+        batch_size = len(x_img)
 
-        Args:
-            x0: 이미지+CLIP 잠재 변수 [B, C1+C2, H, W]
-            y0: 텍스트 특징 [B, T, D]
+        n_img = np.random.choice(list(range(1, self.N + 1)), (batch_size,))
+        n_clip = np.random.choice(list(range(1, self.N + 1)), (batch_size,))
+        n_text = np.random.choice(list(range(1, self.N + 1)), (batch_size,))
 
-        Returns:
-            타임스텝, 노이즈, 노이즈가 추가된 데이터
-        """
-        batch_size = len(x0)
+        eps_img = torch.randn_like(x_img)
+        eps_clip = torch.randn_like(x_clip)
+        eps_text = torch.randn_like(y_text)
 
-        # 각 모달리티에 대해 독립적인 타임스텝 샘플링
-        n_x = np.random.choice(list(range(1, self.N + 1)), (batch_size,))
-        n_y = np.random.choice(list(range(1, self.N + 1)), (batch_size,))
+        xn_img = self._apply_noise(x_img, eps_img, n_img)
+        xn_clip = self._apply_noise(x_clip, eps_clip, n_clip)
+        yn_text = self._apply_noise(y_text, eps_text, n_text)
+        # print("🦖🦖🦖🦖🦖🦖🦖🦖🦖xn_img:", xn_img.shape)
+        # print("🦖🦖🦖🦖🦖🦖🦖🦖🦖xn_clip:", xn_clip.shape)
+        # print("🦖🦖🦖🦖🦖🦖🦖🦖🦖xn_text:", yn_text.shape)
 
-        # 가우시안 노이즈 생성
-        eps_x = torch.randn_like(x0)
-        eps_y = torch.randn_like(y0)
-
-        # 노이즈 추가
-        xn = self._apply_noise(x0, eps_x, n_x)
-        yn = self._apply_noise(y0, eps_y, n_y)
-
-        return (torch.tensor(n_x, device=x0.device),
-                torch.tensor(n_y, device=y0.device)), (eps_x, eps_y), (xn, yn)
+        return (torch.tensor(n_img, device=x_img.device),
+                torch.tensor(n_clip, device=x_clip.device),
+                torch.tensor(n_text, device=y_text.device)), \
+            (eps_img, eps_clip, eps_text), \
+            (xn_img, xn_clip, yn_text)
 
     def _apply_noise(self, x: torch.Tensor, eps: torch.Tensor,
                      n: np.ndarray) -> torch.Tensor:
@@ -151,47 +188,49 @@ class MultimodalLoss:
     """멀티모달 U-ViT 손실 함수 클래스"""
 
     @staticmethod
-    def compute_loss(x0: torch.Tensor, y0: torch.Tensor,
-                     model: nn.Module, scheduler: NoiseScheduler,
-                     img_channels: int, **kwargs) -> torch.Tensor:
-        """
-        멀티모달 U-ViT 손실 계산
+    def compute_loss(img_latent: torch.Tensor,
+                     clip_feat: torch.Tensor,
+                     text_latent: torch.Tensor,
+                     model: nn.Module,
+                     scheduler: NoiseScheduler,
+                     img_channels: int,
+                     **kwargs):
+        # 텍스트 특징 차원 변환: [batch, 77, 768] -> [batch, 77, 64]
+        if text_latent.shape[-1] == 768:
+            # 안전한 차원 변환
+            original_shape = text_latent.shape  # [batch, 77, 768]
+            text_flat = text_latent.view(-1, 768)  # [batch*77, 768]
+            text_projected = model.linear_proj(text_flat)  # [batch*77, 64]
+            text_latent = text_projected.view(original_shape[0], original_shape[1], -1)  # [batch, 77, 64]
 
-        Loss = E_{x0,y0,ε_x,ε_y,t_x,t_y} ||ε_θ(x_t^x, y_t^y, t_x, t_y) - [ε_x, ε_y]||_2^2
 
-        Args:
-            x0: 이미지+CLIP 잠재 변수 [B, C1+C2, H, W]
-            y0: 텍스트 특징 [B, T, D]
-            model: U-ViT 모델
-            scheduler: 노이즈 스케줄러
-            img_channels: 이미지 채널 수
 
-        Returns:
-            계산된 손실값
-        """
+
+
+
+
         # 멀티모달 노이즈 샘플링
-        (n_x, n_y), (eps_x, eps_y), (xn, yn) = scheduler.sample_multimodal(x0, y0)
+        (n_img, n_clip, n_text), (eps_img, eps_clip, eps_text), (
+        x_img_noised, x_clip_noised, x_text_noised) = scheduler.sample_multimodal(img_latent, clip_feat, text_latent)
 
-        # 데이터 타입 무작위 선택 (0: 이미지, 1: 텍스트, 2: 멀티모달)
-        data_type = torch.randint(0, 3, (x0.size(0),), device=x0.device)
+        # data_type: 어떤 modality로 학습할지 결정- randint로 무작위 선택 (0=img only, 1=text only, 2=multimodal)
+        data_type = torch.randint(0, 3, (img_latent.size(0),), device=img_latent.device)
 
         # 모델 예측
-        pred_img_clip, _, pred_text = model(
-            img=xn[:, :img_channels],  # 이미지 부분 추출
-            clip_img=xn[:, img_channels:],  # CLIP 부분 추출
-            text=yn,  # 노이즈가 추가된 텍스트
-            t_img=n_x,
-            t_text=n_y,
+        pred_img, pred_clip, pred_text = model(
+            img=x_img_noised,
+            clip_img=x_clip_noised,
+            text=x_text_noised,
+            t_img=n_img,
+            t_text=n_text,
             data_type=data_type
         )
 
-        # 손실 계산 - 모델이 각 모달리티에 추가된 노이즈를 예측해야 함
-        loss_img_clip = MultimodalLoss._mean_squared_error(
-            eps_x - torch.cat([pred_img_clip, pred_text * 0], dim=1)
-        )
-        loss_text = MultimodalLoss._mean_squared_error(eps_y - pred_text)
+        loss_img = MultimodalLoss._mean_squared_error(eps_img - pred_img)
+        loss_clip = MultimodalLoss._mean_squared_error(eps_clip - pred_clip)*0.05
+        loss_text = MultimodalLoss._mean_squared_error(eps_text - pred_text)
 
-        return loss_img_clip + loss_text
+        return loss_img, loss_clip, loss_text
 
     @staticmethod
     def _mean_squared_error(tensor: torch.Tensor, start_dim: int = 1) -> torch.Tensor:
@@ -204,16 +243,7 @@ class ModelManager:
 
     @staticmethod
     def load_uvit_model(model_path: str, config: ml_collections.ConfigDict) -> nn.Module:
-        """
-        사전 훈련된 U-ViT 모델 로드
-
-        Args:
-            model_path: 모델 체크포인트 경로
-            config: 모델 설정
-
-        Returns:
-            로드된 U-ViT 모델
-        """
+        """사전 훈련된 U-ViT 모델 로드"""
         # U-ViT 모델 생성
         uvit = UViT(
             img_size=config.nnet.img_size,
@@ -231,37 +261,70 @@ class ModelManager:
         )
 
         # 사전 훈련된 가중치 로드
-        checkpoint = torch.load(model_path, map_location='cpu')
-        state_dict = checkpoint.get('model', checkpoint)
-        uvit.load_state_dict(state_dict)
+        if os.path.exists(model_path):
+            checkpoint = torch.load(model_path, map_location='cpu')
+            state_dict = checkpoint.get('model', checkpoint)
 
-        # 선택적 모델 고정 (메모리 절약)
+            # token_embedding.weight 크기 문제 처리 -
+            if 'token_embedding.weight' in state_dict:
+                old_emb = state_dict['token_embedding.weight']      # torch.Size([2, 1536]) - error 발생
+                expected_shape = uvit.token_embedding.weight.shape  # torch.Size([3, 1536])
+                if old_emb.shape != expected_shape:
+                    print(f"token_embedding.weight 크기 mismatch: checkpoint {old_emb.shape} -> model {expected_shape}")
+                    # 새 임베딩 텐서 초기화
+                    new_emb = torch.zeros(expected_shape)
+                    # 기존 임베딩 weight 복사 (가능한 만큼)
+                    n_copy = min(old_emb.shape[0], expected_shape[0])
+                    new_emb[:n_copy] = old_emb[:n_copy]
+                    # 나머지 임베딩은 랜덤 초기화 (표준편차 0.02)
+                    if expected_shape[0] > n_copy:
+                        new_emb[n_copy:] = torch.randn(expected_shape[0] - n_copy, expected_shape[1]) * 0.02
+
+                    state_dict['token_embedding.weight'] = new_emb
+
+            uvit.load_state_dict(state_dict, strict=False)
+            logging.info(f"모델 로드 완료: {model_path}")
+        else:
+            logging.warning(f"모델 파일을 찾을 수 없습니다: {model_path}")
+
+        # 선택적 모델 고정
         ModelManager._freeze_model_layers(uvit)
 
         return ModelManager.UViTWrapper(uvit)
 
     @staticmethod
     def _freeze_model_layers(model: nn.Module) -> None:
-        """
-        메모리 절약을 위한 선택적 레이어 고정
-
-        출력 레이어와 마지막 몇 개 레이어만 학습 가능하게 설정
-        """
+        """메모리 절약, finetuning을 위한 선택적 레이어 고정"""
         total_params = 0
         frozen_params = 0
 
         for name, param in model.named_parameters():
             total_params += param.numel()
 
-            # 출력 레이어와 마지막 3개 블록만 학습
+            # # 출력 레이어와 마지막 3개 블록만 학습
+            # if any(keyword in name for keyword in [
+            #     'decoder_pred', 'clip_img_out', 'text_out',
+            #     'blocks.29', 'blocks.28', 'blocks.27'  # depth=30이므로 29, 28, 27
+            # ]):
+            # 학습할 레이어 선택
             if any(keyword in name for keyword in [
                 'decoder_pred', 'clip_img_out', 'text_out',
-                'blocks.11', 'blocks.10', 'blocks.9'
+                'mid_block',
+                'out_blocks.13', 'out_blocks.14',
+                'in_blocks.13', 'in_blocks.14',
+                'token_embedding'
             ]):
                 param.requires_grad = True
             else:
                 param.requires_grad = False
                 frozen_params += param.numel()
+
+            # layer grad 고정 확인
+            if param.requires_grad:
+                if param.grad is not None:
+                    print(f"[✅] {name} has grad with mean={param.grad.abs().mean():.6f}")
+                else:
+                    print(f"[❌] {name} has NO grad!")
 
         freeze_ratio = frozen_params / total_params * 100
         logging.info(f"모델 고정 완료: {frozen_params}/{total_params} "
@@ -275,6 +338,7 @@ class ModelManager:
             self.uvit = uvit_model
             self.num_text_tokens = uvit_model.num_text_tokens
             self.embed_dim = uvit_model.embed_dim
+            self.linear_proj = nn.Linear(768, 64)   # 학습 가능한 text linear proj
 
         def forward(self, img: torch.Tensor, clip_img: torch.Tensor,
                     text: torch.Tensor, t_img: torch.Tensor,
@@ -287,70 +351,63 @@ class TrainingManager:
     """훈련 과정 관리 클래스"""
 
     def __init__(self, config: ml_collections.ConfigDict):
-        """
-        훈련 매니저 초기화
-
-        Args:
-            config: 훈련 설정
-        """
+        """훈련 매니저 초기화"""
         self.config = config
-        self.accelerator = accelerate.Accelerator()
+        self.accelerator = accelerate.Accelerator(mixed_precision=config.mixed_precision)
         self.device = self.accelerator.device
+        accelerate.utils.set_seed(config.seed, device_specific=True)
+        logging.info(f'Process {self.accelerator.process_index} using device: {self.device}')
         self.scheduler = NoiseScheduler()
         self.setup_logging()
 
     def setup_logging(self) -> None:
         """로깅 설정"""
         if self.accelerator.is_main_process:
+            # wandb 초기화
             wandb.init(
-                dir=os.path.abspath('/wandb'),
+                dir=os.path.join('workdir'),
                 project=f'uvit_finetune_{self.config.dataset.name}',
                 config=self.config.to_dict(),
                 name='finetune_avamerg',
                 job_type='finetune',
                 mode='online'
             )
-            utils.set_logger(
-                log_level='info',
-                fname=os.path.join('output.log')
+
+            # 로거 설정
+            logging.basicConfig(
+                level=logging.INFO,
+                format='%(asctime)s - %(levelname)s - %(message)s',
+                handlers=[
+                    logging.FileHandler('workdir/training.log'),
+                    logging.StreamHandler()
+                ]
             )
             logging.info("훈련 설정:")
             logging.info(self.config)
         else:
-            utils.set_logger(log_level='error')
+            logging.basicConfig(level=logging.ERROR)
 
     def setup_data_loader(self) -> DataLoader:
         """데이터 로더 설정"""
         try:
-            # 필요한 모델들 로드
-            autoencoder, clip_img_model, clip_preprocess, clip_text_model, linear_proj = \
-                utils.load_models(self.config)
+            # Linear projection 모델 생성 (768 -> 64 차원 변환)
+            linear_proj = nn.Linear(768, 64).to(self.device)
 
-            # 데이터셋 설정에 모델들 추가
-            dataset_config = self.config.dataset.copy()
-            dataset_config.update({
-                'autoencoder': autoencoder,
-                'clip_img_model': clip_img_model,
-                'clip_text_model': clip_text_model,
-                'clip_preprocess': clip_preprocess,
-                'linear_proj': linear_proj,
-                'device': self.device
-            })
-
-            # 데이터셋 생성
-            dataset = get_dataset(**dataset_config)
-            assert os.path.exists(dataset.fid_stat), "FID 통계 파일이 존재하지 않습니다"
-
-            train_dataset = dataset.get_split(split='train', labeled=True)
+            # NPY 데이터셋 생성
+            dataset = NPYDataset(
+                npy_root=self.config.dataset.train_npy_root,
+                # linear_proj=linear_proj
+                linear_proj=None  # UViTWrapper에서 정의했으므로 여기는 제거함
+            )
 
             return DataLoader(
-                train_dataset,
+                dataset,
                 batch_size=self.config.train.batch_size,
                 shuffle=True,
                 drop_last=True,
                 num_workers=4,
-                pin_memory=False,
-                persistent_workers=False,
+                pin_memory=True,
+                persistent_workers=True,
             )
 
         except Exception as e:
@@ -358,62 +415,56 @@ class TrainingManager:
             raise
 
     def train_step(self, batch: Tuple, model: nn.Module,
-                   optimizer: torch.optim.Optimizer,
-                   autoencoder: nn.Module) -> Dict[str, float]:
-        """
-        단일 훈련 스텝 수행
-
-        Args:
-            batch: 배치 데이터
-            model: 훈련 모델
-            optimizer: 옵티마이저
-            autoencoder: 오토인코더 모델
-
-        Returns:
-            훈련 메트릭
-        """
+                   optimizer: torch.optim.Optimizer) -> Dict[str, float]:
+        """단일 훈련 스텝 수행"""
         metrics = {}
         optimizer.zero_grad()
 
         try:
-            if len(batch) != 3:
-                raise ValueError(f"배치는 3개 요소를 가져야 합니다. 실제: {len(batch)}")
-
-            images, clip_features, text_features = batch
-            images = images.to(self.device)
+            img_latents, clip_features, text_features = batch
+            img_latents = img_latents.to(self.device)
             clip_features = clip_features.to(self.device)
             text_features = text_features.to(self.device)
 
-            # 이미지를 잠재 공간으로 인코딩
-            with torch.amp.autocast('cuda'):
-                z_img = autoencoder.encode(images)
-
-            # CLIP 특징을 이미지 잠재 변수와 같은 차원으로 변환
-            clip_features = self._reshape_clip_features(clip_features, z_img)
-
-            # 이미지 잠재 변수와 CLIP 특징 결합
-            x0 = torch.cat([z_img, clip_features], dim=1)
-            y0 = text_features
-
             # 멀티모달 손실 계산
-            loss = MultimodalLoss.compute_loss(
-                x0, y0, model, self.scheduler,
-                img_channels=z_img.shape[1],
-                text=text_features
-            )
+            with self.accelerator.autocast():
+                loss_img, loss_clip, loss_text = MultimodalLoss.compute_loss(
+                    img_latent=img_latents,
+                    clip_feat=clip_features,
+                    text_latent=text_features,
+                    model=model,
+                    scheduler=self.scheduler,
+                    img_channels=img_latents.shape[1]
+                )
+            loss = loss_img + loss_clip + loss_text
 
             # 역전파
             self.accelerator.backward(loss.mean())
 
+            for name, param in model.named_parameters():
+                if param.requires_grad:
+                    if param.grad is not None:
+                        print(f"[⭐⭐⭐✅] {name} has grad with mean={param.grad.abs().mean():.6f}")
+                    else:
+                        print(f"[⭐⭐⭐❌] {name} has NO grad!")
+
+
+
+
+            # ✅ wandb용 metrics 정리
+            metrics['loss'] = self.accelerator.gather(loss.detach()).mean().item()
+            metrics['loss_img'] = self.accelerator.gather(loss_img.detach()).mean().item()
+            metrics['loss_clip'] = self.accelerator.gather(loss_clip.detach()).mean().item()
+            metrics['loss_text'] = self.accelerator.gather(loss_text.detach()).mean().item()
+
             # 그래디언트 클리핑
-            if self.config.train.get('grad_clip', 0) > 0:
+            if hasattr(self.config.train, 'grad_clip') and self.config.train.grad_clip > 0:
                 self.accelerator.clip_grad_norm_(
                     model.parameters(),
                     self.config.train.grad_clip
                 )
 
             optimizer.step()
-
             metrics['loss'] = self.accelerator.gather(loss.detach()).mean().item()
 
         except Exception as e:
@@ -423,82 +474,89 @@ class TrainingManager:
         return metrics
 
     def _reshape_clip_features(self, clip_features: torch.Tensor,
-                               z_img: torch.Tensor) -> torch.Tensor:
+                               img_latents: torch.Tensor) -> torch.Tensor:
         """CLIP 특징을 이미지 잠재 변수와 같은 공간 차원으로 변환"""
         # [B, D] → [B, D, 1, 1] → [B, D, H, W]
         clip_features = clip_features.unsqueeze(-1).unsqueeze(-1)
-        clip_features = clip_features.expand(-1, -1, z_img.shape[2], z_img.shape[3])
+        clip_features = clip_features.expand(-1, -1, img_latents.shape[2], img_latents.shape[3])
         return clip_features
 
     @staticmethod
     def update_ema(ema_model: nn.Module, model: nn.Module,
                    decay: float = 0.9999) -> None:
-        """
-        지수 이동 평균(EMA) 모델 업데이트
-
-        Args:
-            ema_model: EMA 모델
-            model: 현재 모델
-            decay: 감쇠율
-        """
+        """지수 이동 평균(EMA) 모델 업데이트"""
         with torch.no_grad():
             for ema_param, param in zip(ema_model.parameters(), model.parameters()):
                 ema_param.data.mul_(decay).add_(param.data, alpha=1 - decay)
 
+    def save_checkpoint(self, model: nn.Module, ema_model: nn.Module,
+                       optimizer: torch.optim.Optimizer, step: int) -> None:
+        """체크포인트 저장"""
+        if self.accelerator.is_main_process:
+            checkpoint = {
+                'model': self.accelerator.unwrap_model(model).state_dict(),
+                'ema_model': self.accelerator.unwrap_model(ema_model).state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'step': step,
+                'config': self.config.to_dict()
+            }
+            save_path = f'checkpoint_step_{step}.pth'
+            torch.save(checkpoint, save_path)
+            logging.info(f"체크포인트 저장 완료: {save_path}")
+
 
 def main():
     """메인 함수"""
-
     try:
-        # 설정 로드
-        from configs import finetune_uvit_config
-        config = finetune_uvit_config.get_config()
-
+        # 설정 로드 (import 경로 수정 필요할 수 있음)
+        logging.info(f"get_config 진입")
+        from configs.finetune_uvit_config import get_config
+        config = get_config()
+        logging.info(f"TrainingManager 진입")
         # 훈련 매니저 초기화
         trainer = TrainingManager(config)
-
+        logging.info(f"data_loader, load_uvit_model 진입")
         # 모델 및 데이터 설정
         data_loader = trainer.setup_data_loader()
         model = ModelManager.load_uvit_model(config.nnet.pretrained_path, config)
-        model.to(trainer.device)
-
+        logging.info(f"ema_model 진입")
         # EMA 모델 생성
         ema_model = ModelManager.load_uvit_model(config.nnet.pretrained_path, config)
-        ema_model.to(trainer.device)
         ema_model.eval()
-
+        logging.info(f"옵티마이저 설정, trainable_params 진입")
         # 옵티마이저 설정
-        trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+        trainable_params = [p for p in model.parameters() if p.requires_grad]
+        #print(f"⭐⭐⭐⭐Trainable parameters: {trainable_params}")
         optimizer = torch.optim.AdamW(
-            list(trainable_params),
+            trainable_params,
             lr=config.optimizer.lr,
-            weight_decay=config.optimizer.weight_decay
+            weight_decay=config.optimizer.weight_decay,
+            betas=config.optimizer.betas
         )
-
+        logging.info(f"lr_scheduler 진입")
         # 학습률 스케줄러
         lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
             optimizer,
             lr_lambda=lambda step: min(step / config.lr_scheduler.warmup_steps, 1.0)
         )
-
+        logging.info(f"분산학습준비 진입")
         # 분산 훈련 준비
-        model, ema_model, optimizer, data_loader = trainer.accelerator.prepare(
-            model, ema_model, optimizer, data_loader
+        model, ema_model, optimizer, data_loader, lr_scheduler = trainer.accelerator.prepare(
+            model, ema_model, optimizer, data_loader, lr_scheduler
         )
 
         # 훈련 시작
         logging.info("U-ViT 파인튜닝 시작")
         step = 0
+        model.train()
 
         while step < config.train.n_steps:
             for batch in data_loader:
                 if step >= config.train.n_steps:
                     break
 
-                model.train()
-
                 # 훈련 스텝 수행
-                metrics = trainer.train_step(batch, model, optimizer, None)  # autoencoder 필요
+                metrics = trainer.train_step(batch, model, optimizer)
 
                 # EMA 업데이트
                 TrainingManager.update_ema(ema_model, model, config.get('ema_rate', 0.9999))
@@ -509,11 +567,20 @@ def main():
                 # 로깅
                 if trainer.accelerator.is_main_process and step % config.train.log_interval == 0:
                     metrics['lr'] = optimizer.param_groups[0]['lr']
-                    logging.info(f"Step {step}: {metrics}")
+                    metrics['step'] = step
+                    logging.info(f"Step {step}: Loss={metrics['loss']:.6f}, loss_img={metrics['loss_img']:.4f}, "
+                                 f"loss_clip={metrics['loss_clip']:.4f}, loss_text={metrics['loss_text']:.4f}, "
+                                 f"LR={metrics['lr']:.7f}")
                     wandb.log(metrics, step=step)
+
+                # 체크포인트 저장
+                if step % config.train.save_interval == 0 and step > 0:
+                    trainer.save_checkpoint(model, ema_model, optimizer, step)
 
                 step += 1
 
+        # 최종 체크포인트 저장
+        trainer.save_checkpoint(model, ema_model, optimizer, step)
         logging.info("훈련 완료!")
 
     except Exception as e:
@@ -522,4 +589,22 @@ def main():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format=f"%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(),  # 콘솔 출력
+            logging.FileHandler("train.log")  # 파일 로그
+        ]
+    )
+    if torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+        logging.info(f"Process {rank} started.")
+    else:
+        logging.info("Single-process start.")
+    logging.info("mp 진입")
+    import sys
+    sys.stdout.flush()
+    mp.set_start_method("spawn", force=True)
+    logging.info("main 진입")
     main()

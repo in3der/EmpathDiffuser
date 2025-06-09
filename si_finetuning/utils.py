@@ -174,3 +174,39 @@ def grad_norm(model):
         total_norm += param_norm.item() ** 2
     total_norm = total_norm ** (1. / 2)
     return total_norm
+
+
+
+
+# 250526 데이터셋 로딩 시 pretrained model 불러오기
+import torch
+import clip
+import torch.nn as nn
+from libs.autoencoder import get_model as get_autoencoder
+from libs.clip import FrozenCLIPEmbedder
+
+def load_models(config, device='cuda'):
+    # 1. Autoencoder
+    autoencoder = get_autoencoder(config.autoencoder.pretrained_path)
+    autoencoder = autoencoder.to(device).eval()
+    for p in autoencoder.parameters():
+        p.requires_grad = False
+
+    # 2. CLIP
+    clip_img_model, clip_preprocess = clip.load("ViT-B/32", device=device)
+
+    clip_img_model.eval()
+    for p in clip_img_model.parameters():
+        p.requires_grad = False
+
+    #clip_text_model, _ = clip.load("ViT-B/32", device=device)
+    model = FrozenCLIPEmbedder(device=device)
+    clip_text_model = model.eval().cuda()
+    clip_text_model.eval()
+    for p in clip_text_model.parameters():
+        p.requires_grad = False
+
+    # 3. Linear projection
+    linear_proj = nn.Linear(768, 64).to(device)
+
+    return autoencoder, clip_img_model, clip_preprocess, clip_text_model, linear_proj

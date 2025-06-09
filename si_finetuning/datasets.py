@@ -5,7 +5,9 @@ import numpy as np
 import torch
 import math
 import random
+import libs.clip
 from PIL import Image
+import clip
 import os
 import glob
 import einops
@@ -38,6 +40,7 @@ class LabeledDataset(Dataset):
         return self.dataset[item], self.labels[item]
 
 
+"""
 class CFGDataset(Dataset):  # for classifier free guidance
     def __init__(self, dataset, p_uncond, empty_token):
         self.dataset = dataset
@@ -52,6 +55,35 @@ class CFGDataset(Dataset):  # for classifier free guidance
         if random.random() < self.p_uncond:
             y = self.empty_token
         return x, y
+"""
+# 250523 - clip 임베딩  추가한 버전
+class CFGDataset(Dataset):  # with CLIP feature support
+    def __init__(self, dataset, p_uncond, empty_token, clip_preprocess, clip_model):
+        self.dataset = dataset
+        self.p_uncond = p_uncond
+        self.empty_token = empty_token
+        self.clip_model = clip_model
+        self.clip_preprocess = clip_preprocess
+        clip_model.eval()  # 혹은 필요 시 .requires_grad_(False)
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, item):
+        img, label = self.dataset[item]
+
+        # CLIP 전처리 및 임베딩 생성
+        img_pil = transforms.ToPILImage()(img)  # tensor → PIL
+        img_clip = self.clip_preprocess(img_pil).unsqueeze(0)  # [1, 3, 224, 224]
+        with torch.no_grad():
+            clip_feature = self.clip_model.encode_image(img_clip).squeeze(0).to('cuda')  # [D]
+
+        if random.random() < self.p_uncond:
+            label = self.empty_token
+
+        return img, clip_feature, label
+
+
 
 
 class DatasetFactory(object):
@@ -113,7 +145,8 @@ class CIFAR10(DatasetFactory):
          shape: 3 * 32 * 32
     """
 
-    def __init__(self, path, random_flip=False, cfg=False, p_uncond=None):
+    #def __init__(self, path, random_flip=False, cfg=False, p_uncond=None):
+    def __init__(self, path, random_flip=False, cfg=False, p_uncond=None, clip_preprocess=None): # ★ 추가 인자
         super().__init__()
 
         transform_train = [transforms.ToTensor(), transforms.Normalize(0.5, 0.5)]
@@ -136,7 +169,10 @@ class CIFAR10(DatasetFactory):
         if cfg:  # classifier free guidance
             assert p_uncond is not None
             print(f'prepare the dataset for classifier free guidance with p_uncond={p_uncond}')
-            self.train = CFGDataset(self.train, p_uncond, self.K)
+            #self.train = CFGDataset(self.train, p_uncond, self.K)
+
+            clip_text_model = libs.clip.FrozenCLIPEmbedder(device='cuda')
+            self.train = CFGDataset(self.train, p_uncond, self.K, clip_preprocess, clip_model=clip_text_model)  # ★ 추가 인자
 
     @property
     def data_shape(self):
