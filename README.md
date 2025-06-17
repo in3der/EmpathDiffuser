@@ -1,7 +1,8 @@
 ## EmpathDiffuser
 
 This paper proposes EmpathDiffuser, a multi-modal response generation model that simultaneously produces empathetic text and facial image responses conditioned on a speaker's utterance and facial expression. While UniDiffuser enables joint distribution learning over image and text modalities for flexible generation directions, it does not handle conditional response generation in emotionally grounded contexts. We extend this capability by modifying the UniDiffuser architecture to conditionally generate multi-modal responses (x_0', y_0') given a speaker’s multi-modal input (x_0, y_0), and incorporate an auxiliary emotion classification module to ensure affective consistency. We fine-tune the model using the AvaMERG dataset, which provides aligned face images, utterances, and empathy labels. Evaluation with FID, BLEU, and emotion classification accuracy demonstrates the potential of EmpathDiffuser to capture affective context and generate coherent multi-modal responses. Both quantitative and qualitative results show the effectiveness of our approach for multi-modal empathy modeling beyond traditional text-based frameworks.
-<img src="assets/empathdiffuser.png" alt="drawing" width="400"/>
+
+<img src="assets/empathdiffuser.png" alt="drawing" width="600"/>
 
 --------------------
 
