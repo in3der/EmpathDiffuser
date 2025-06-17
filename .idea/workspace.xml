@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="44a293c7-39b7-4729-8a5d-08bfce5b570c" name="Changes" comment="update README.md">
+      <change afterPath="$PROJECT_DIR$/.idea/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/unidiffuser.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/assets/empathdiffuser.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/env_unidiffuser.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/env_uvit.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/models/inspect_ckpt.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/configs/finetune_uvit.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/configs/finetune_uvit_config.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/dpm_solver_pp.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/dpm_solver_pytorch.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/finetune_datasets.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/libs/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/libs/autoencoder.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/libs/caption_decoder.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/libs/clip.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/libs/timm.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/libs/uvit_multi_post_ln.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/libs/uvit_multi_post_ln_v1.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/scripts/extract_avamerg_feature2.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/scripts/makedict_extract_avamerg_feature.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/tools/dataset_convert.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/tools/fid_score.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/tools/inception.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/tools/test_finetune.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/tools/train_finetune.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/train_ldm_avamerg_0611.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/train_ldm_avamerg_0616.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/si_finetuning_2/utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/configs/sample_unidiffuser_v1.py" beforeDir="false" afterPath="$PROJECT_DIR$/configs/sample_unidiffuser_v1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval_avamerg.py" beforeDir="false" afterPath="$PROJECT_DIR$/eval_avamerg.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sample_multi_v1.py" beforeDir="false" afterPath="$PROJECT_DIR$/sample_multi_v1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/si_finetuning_2/scripts/extract_avamerg_feature.py" beforeDir="false" afterPath="$PROJECT_DIR$/si_finetuning_2/scripts/extract_avamerg_feature.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/si_finetuning_2/train_ldm_avamerg.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/si_finetuning_2/train_ldm_avamerg_0603.py" beforeDir="false" afterPath="$PROJECT_DIR$/si_finetuning_2/train_ldm_avamerg_0603.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/si_finetuning_2/train_ldm_avamerg_0603_sampling.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/si_finetuning_2/train_ldm_avamerg_0603_sampling2.py" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="ROOT_SYNC" value="SYNC" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;history&quot;: [
+    {
+      &quot;state&quot;: &quot;OPEN&quot;,
+      &quot;author&quot;: &quot;in3der&quot;
+    }
+  ],
+  &quot;lastFilter&quot;: {}
+}</component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/in3der/EmpathDiffuser",
+    "accountId": "9fbf7156-d689-4b2f-ae12-40525768f72f"
+  }
+}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 8
+}</component>
+  <component name="ProjectId" id="2wcqlMWY0oS25wUhv0H8l7ydH2a" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showExcludedFiles" value="false" />
+    <option name="showLibraryContents" value="true" />
+    <option name="showMembers" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.dataset_convert.executor&quot;: &quot;Run&quot;,
+    &quot;Python.eval_avamerg.executor&quot;: &quot;Run&quot;,
+    &quot;Python.extract_avamerg_feature.executor&quot;: &quot;Run&quot;,
+    &quot;Python.finetune_caption_decoder.executor&quot;: &quot;Run&quot;,
+    &quot;Python.finetune_datasets.executor&quot;: &quot;Run&quot;,
+    &quot;Python.makedict_extract_avamerg_feature.executor&quot;: &quot;Run&quot;,
+    &quot;Python.model_diff.executor&quot;: &quot;Run&quot;,
+    &quot;Python.sample_multi_v1.executor&quot;: &quot;Run&quot;,
+    &quot;Python.train_ldm_avamerg.executor&quot;: &quot;Run&quot;,
+    &quot;Python.train_ldm_avamerg_0603.executor&quot;: &quot;Run&quot;,
+    &quot;Python.train_ldm_avamerg_0603_sampling.executor&quot;: &quot;Run&quot;,
+    &quot;Python.train_ldm_avamerg_0603_sampling2.executor&quot;: &quot;Run&quot;,
+    &quot;Python.train_ldm_avamerg_0611.executor&quot;: &quot;Run&quot;,
+    &quot;Python.uvit_multi_post_ln_v1.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/sichoi/unidiffuser/si_finetuning_2&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RdControllerToolWindowsLayoutState" isNewUi="true">
+    <layout>
+      <window_info id="Bookmarks" side_tool="true" />
+      <window_info id="Merge Requests" />
+      <window_info id="Commit_Guest" show_stripe_button="false" />
+      <window_info id="Learn" />
+      <window_info content_ui="combo" id="Project" order="0" weight="0.23120956" />
+      <window_info active="true" id="Commit" order="1" visible="true" weight="0.3974614" />
+      <window_info id="VcsChanges" order="2" weight="0.31820714" />
+      <window_info id="Structure" order="3" side_tool="true" weight="0.21706192" />
+      <window_info id="Pull Requests" order="4" weight="0.23120956" />
+      <window_info anchor="bottom" id="Database Changes" />
+      <window_info anchor="bottom" id="TypeScript" />
+      <window_info anchor="bottom" id="TODO" />
+      <window_info anchor="bottom" id="File Transfer" />
+      <window_info anchor="bottom" id="Version Control" order="0" weight="0.3031038" />
+      <window_info anchor="bottom" id="Problems" order="1" />
+      <window_info anchor="bottom" id="Problems View" order="2" weight="0.18380213" />
+      <window_info anchor="bottom" id="Services" order="3" />
+      <window_info active="true" anchor="bottom" x="544" y="415" width="1376" height="221" id="Terminal" order="4" visible="true" weight="0.22790948" />
+      <window_info anchor="bottom" id="Python Packages" order="5" weight="0.1" />
+      <window_info anchor="bottom" id="Python Console" order="6" weight="0.11687682" />
+      <window_info anchor="bottom" x="-1477" y="636" width="1178" height="178" id="Run" order="7" weight="0.30923912" />
+      <window_info anchor="bottom" id="Debug" order="8" weight="0.18380213" />
+      <window_info anchor="bottom" id="Find" order="9" weight="0.4117362" />
+      <window_info anchor="right" id="Key Promoter X" />
+      <window_info anchor="right" id="Remote Host" />
+      <window_info anchor="right" id="Endpoints" />
+      <window_info anchor="right" id="documentation.v2" show_stripe_button="false" side_tool="true" />
+      <window_info anchor="right" id="Coverage" side_tool="true" />
+      <window_info anchor="right" id="SciView" />
+      <window_info anchor="right" id="Notifications" order="0" weight="0.3301577" />
+      <window_info anchor="right" id="AIAssistant" order="1" weight="0.25" />
+      <window_info anchor="right" id="Database" order="2" weight="0.25" />
+      <window_info anchor="right" id="Gradle" order="3" weight="0.25" />
+      <window_info anchor="right" id="Maven" order="4" weight="0.25" />
+      <window_info anchor="right" id="Plots" order="5" weight="0.1" />
+    </layout>
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/si_finetuning_2" />
+      <recent name="$PROJECT_DIR$/si_finetuning_2/scripts" />
+      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/si_finetuning/configs" />
+      <recent name="$PROJECT_DIR$/si_finetuning" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/si_finetuning_2/ckpt" />
+      <recent name="$PROJECT_DIR$" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-1d06a55b98c1-0b3e54e931b4-JavaScript-PY-241.18034.53" />
+        <option value="bundled-python-sdk-13a8072ce35e-2767605e8bc2-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-241.18034.53" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="44a293c7-39b7-4729-8a5d-08bfce5b570c" name="Changes" comment="" />
+      <created>1746351365444</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1746351365444</updated>
+      <workItem from="1746351368812" duration="5089000" />
+      <workItem from="1747891518926" duration="43186000" />
+      <workItem from="1748163582503" duration="50302000" />
+      <workItem from="1748928864751" duration="21168000" />
+      <workItem from="1749020150321" duration="1907000" />
+      <workItem from="1749025987026" duration="14139000" />
+      <workItem from="1749091276670" duration="15687000" />
+      <workItem from="1749129924776" duration="438000" />
+      <workItem from="1749130980115" duration="65001000" />
+      <workItem from="1749530942148" duration="14427000" />
+      <workItem from="1749637276184" duration="289000" />
+      <workItem from="1749637965735" duration="7799000" />
+      <workItem from="1749710170238" duration="6403000" />
+      <workItem from="1749788629410" duration="40209000" />
+    </task>
+    <task id="LOCAL-00001" summary="modified, add eval_avamerg.py">
+      <option name="closed" value="true" />
+      <created>1749441546196</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1749441546196</updated>
+    </task>
+    <task id="LOCAL-00002" summary="delete si_finetuning folder">
+      <option name="closed" value="true" />
+      <created>1749443587889</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1749443587889</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="OPEN_GENERIC_TABS">
+      <map>
+        <entry key="7f0dbf18-e726-4bef-9d2c-4f803c860adf" value="TOOL_WINDOW" />
+      </map>
+    </option>
+    <option name="TAB_STATES">
+      <map>
+        <entry key="7f0dbf18-e726-4bef-9d2c-4f803c860adf">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="roots">
+                    <value>
+                      <list>
+                        <option value="$PROJECT_DIR$" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
+          </value>
+        </entry>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="initial commit" />
+    <MESSAGE value="modified, add eval_avamerg.py" />
+    <MESSAGE value="delete si_finetuning folder" />
+    <MESSAGE value="update README.md" />
+    <option name="LAST_COMMIT_MESSAGE" value="update README.md" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <default-breakpoints>
+        <breakpoint type="python-exception">
+          <properties notifyOnTerminate="true" exception="BaseException">
+            <option name="notifyOnTerminate" value="true" />
+          </properties>
+        </breakpoint>
+      </default-breakpoints>
+    </breakpoint-manager>
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/unidiffuser$train_ldm_avamerg_0603.coverage" NAME="train_ldm_avamerg_0603 Coverage Results" MODIFIED="1749637369293" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning_2" />
+    <SUITE FILE_PATH="coverage/unidiffuser$makedict_extract_avamerg_feature.coverage" NAME="makedict_extract_avamerg_feature Coverage Results" MODIFIED="1748935279445" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning_2/scripts" />
+    <SUITE FILE_PATH="coverage/unidiffuser$train_ldm_avamerg.coverage" NAME="train_ldm_avamerg Coverage Results" MODIFIED="1749105652650" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning_2" />
+    <SUITE FILE_PATH="coverage/unidiffuser$finetune_caption_decoder.coverage" NAME="finetune_caption_decoder Coverage Results" MODIFIED="1749366125940" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning_2" />
+    <SUITE FILE_PATH="coverage/unidiffuser$extract_avamerg_feature.coverage" NAME="extract_avamerg_feature Coverage Results" MODIFIED="1749536723013" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning_2/scripts" />
+    <SUITE FILE_PATH="coverage/unidiffuser$eval_avamerg.coverage" NAME="eval_avamerg Coverage Results" MODIFIED="1749403989398" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/unidiffuser$finetune_datasets.coverage" NAME="finetune_datasets Coverage Results" MODIFIED="1748933606085" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning_2" />
+    <SUITE FILE_PATH="coverage/unidiffuser$uvit_multi_post_ln_v1.coverage" NAME="uvit_multi_post_ln_v1 Coverage Results" MODIFIED="1748942662575" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning_2/libs" />
+    <SUITE FILE_PATH="coverage/unidiffuser$sample_multi_v1.coverage" NAME="sample_multi_v1 Coverage Results" MODIFIED="1749285486603" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/unidiffuser$model_diff.coverage" NAME="model_diff Coverage Results" MODIFIED="1749533952512" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/models" />
+    <SUITE FILE_PATH="coverage/unidiffuser$train_ldm_avamerg_0603_sampling2.coverage" NAME="train_ldm_avamerg_0603_sampling2 Coverage Results" MODIFIED="1749026368226" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning_2" />
+    <SUITE FILE_PATH="coverage/unidiffuser$dataset_convert.coverage" NAME="dataset_convert Coverage Results" MODIFIED="1748008410067" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning/tools" />
+    <SUITE FILE_PATH="coverage/unidiffuser$train_ldm_avamerg_0611.coverage" NAME="train_ldm_avamerg_0611 Coverage Results" MODIFIED="1749648398645" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning_2" />
+    <SUITE FILE_PATH="coverage/unidiffuser$train_ldm_avamerg_0603_sampling.coverage" NAME="train_ldm_avamerg_0603_sampling Coverage Results" MODIFIED="1748955153711" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/si_finetuning_2" />
+  </component>
+</project>

@@ -1,21 +1,11 @@
-## UniDiffuser
+## EmpathDiffuser
 
-Code and models for the paper ["One Transformer Fits All Distributions in Multi-Modal Diffusion"](https://arxiv.org/abs/2303.06555)
+[![Hugging Face Spaces](https://huggingface.co/datasets/SIChoi/AvaMERG_frame)](https://huggingface.co/spaces/thu-ml/unidiffuser)
 
-[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/thu-ml/unidiffuser)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/thu-ml/unidiffuser/blob/main/UniDiffuser.ipynb)
-[![Replicate](https://replicate.com/cjwbw/unidiffuser/badge)](https://replicate.com/cjwbw/unidiffuser)
-[![Diffusers](https://img.shields.io/badge/%F0%9F%A7%A8-diffusers-red)](https://huggingface.co/docs/diffusers/main/en/api/pipelines/unidiffuser)
 <img src="assets/demos_v0.png" alt="drawing" width="800"/>
 
-UniDiffuser is a unified diffusion framework to fit all distributions relevant to a set of multi-modal data in one model. 
-Its key insight is -- learning diffusion models for marginal, conditional, and joint distributions can be unified as predicting the noise in the perturbed data, where the perturbation levels (i.e. timesteps) can be different for different modalities. 
-Inspired by the unified view, UniDiffuser learns all distributions simultaneously with a minimal modification to the original diffusion model -- perturbs data in all modalities instead of a single modality, inputs individual timesteps in different modalities, and predicts the noise of all modalities instead of a single modality. 
-UniDiffuser is parameterized by a transformer for diffusion models to handle input types of different modalities. 
-Implemented on large-scale paired image-text data, UniDiffuser is able to perform image, text, text-to-image, image-to-text, and image-text pair generation by setting proper timesteps without additional overhead. 
-In particular, UniDiffuser is able to produce perceptually realistic samples in all tasks and its quantitative results (e.g., the FID and CLIP score) are not only superior to existing general-purpose models but also comparable to the bespoken models (e.g., Stable Diffusion and DALL-E 2) in representative tasks (e.g., text-to-image generation).
-
-<img src="assets/unidiffuser.png" alt="drawing" width="800"/>
+This paper proposes EmpathDiffuser, a multi-modal response generation model that simultaneously produces empathetic text and facial image responses conditioned on a speaker's utterance and facial expression. While UniDiffuser enables joint distribution learning over image and text modalities for flexible generation directions, it does not handle conditional response generation in emotionally grounded contexts. We extend this capability by modifying the UniDiffuser architecture to conditionally generate multi-modal responses (x_0', y_0') given a speaker’s multi-modal input (x_0, y_0), and incorporate an auxiliary emotion classification module to ensure affective consistency. We fine-tune the model using the AvaMERG dataset, which provides aligned face images, utterances, and empathy labels. Evaluation with FID, BLEU, and emotion classification accuracy demonstrates the potential of EmpathDiffuser to capture affective context and generate coherent multi-modal responses. Both quantitative and qualitative results show the effectiveness of our approach for multi-modal empathy modeling beyond traditional text-based frameworks.
+<img src="assets/empathdiffuser.png" alt="drawing" width="400"/>
 
 --------------------
 
@@ -35,6 +25,19 @@ pip install -U --pre triton
 
 * We highly suggest install [xformers](https://github.com/facebookresearch/xformers), which would greatly speed up the attention computation for *both training and inference*.
 
+
+# Training
+## Dependency
+```sh
+conda env create -f env_uvit.yml
+pip install accelerate==0.12.0 absl-py ml_collections einops wandb ftfy==6.1.1 transformers==4.23.1
+
+# xformers is optional, but it would greatly speed up the attention computation.
+pip install -U xformers
+pip install -U --pre triton
+````
+This repo is based on timm==0.3.2, for which a fix is needed to work with PyTorch 1.8.1+. (Perhaps other versions also work, but I haven't tested it.)
+We highly suggest install xformers, which would greatly speed up the attention computation for both training and inference.
 
 
 ## Pretrained Models
@@ -64,9 +67,41 @@ After downloading, create a new folder named `models` and put all pretrained mod
 │   └── uvit_v0.pth or uvit_v1.pth
 ```
 
-## Inference
+## Fine-tuned Variant: EmpathDiffuser
 
-We suggest to use UniDiffuser-v1 for a better performance. Results are put into `out` directory by default.
+EmpathDiffuser is a fine-tuned variant of [UniDiffuser-v1](https://huggingface.co/thu-ml/unidiffuser-v1), specifically adapted for multimodal empathetic response generation. It is trained on the [AvaMERG](https://github.com/xxx/avaMERG) dataset, which consists of paired facial images and emotional utterances.
+
+EmpathDiffuser leverages the same backbone architecture as UniDiffuser, including the U-ViT joint noise prediction network and pretrained modality encoders. On top of this, we add an auxiliary emotion classification module and fine-tune the entire model (except for frozen encoders) to generate affectively aligned text and image responses.
+
+You can use the original UniDiffuser-v1 weights as initialization and fine-tune with your own multimodal empathy dataset.
+
+## Dataset Preparation
+
+To prepare the dataset, first download the AvaMERG (Frame) dataset from Hugging Face:
+
+https://huggingface.co/datasets/SIChoi/AvaMERG_frame
+
+Then extract multimodal features by running the following script:
+```shell
+python si_finetuning_2/scripts/extract_avamerg_feature2.py
+```
+
+Make sure the dataset is placed in the correct relative path before running the script.
+
+## Fine-tuning
+```shell
+accelerate launch si_finetuning_2/train_ldm_avamerg_0616.py
+```
+
+## Evaluation
+```shell
+accelerate launch eval_avamerg
+```
+
+
+# Inference
+
+Results are put into `out` directory by default.
 
 * **text-to-image generation**
 ```shell
@@ -137,46 +172,6 @@ The inference command of UniDiffuser-v0 is basically the same as UniDiffuser-v1,
 python sample_multi_v0.py --mode=t2i --prompt="an elephant under the sea"
 ```
 
-## Integration with 🧨 diffusers
-
-UniDiffuser is also available in 🧨 diffusers. It is available in six different modes. 
-Here is how one can use the `UniDiffuserPipeline` to generate images from text:
-
-```python
-import torch
-from diffusers import UniDiffuserPipeline
-
-device = "cuda"
-model_id_or_path = "thu-ml/unidiffuser-v1"
-pipe = UniDiffuserPipeline.from_pretrained(model_id_or_path, torch_dtype=torch.float16)
-pipe.to(device)
-
-# Text-to-image generation
-prompt = "an elephant under the sea"
-
-sample = pipe(prompt=prompt, num_inference_steps=20, guidance_scale=8.0)
-t2i_image = sample.images[0]
-t2i_image.save("unidiffuser_text2img_sample_image.png")
-```
-
-To learn more details, check out the official [UniDiffuser documentation](https://huggingface.co/docs/diffusers/main/en/api/pipelines/unidiffuser). 
 
 
-## References
-If you find the code useful for your research, please consider citing
-```bib
-@article{bao2022one,
-  title={One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale},
-  author={Bao, Fan and Nie, Shen and Xue, Kaiwen and Li, Chongxuan and Pu, Shi and Wang, Yaole and Yue, Gang and Cao, Yue and Su, Hang and Zhu, Jun},
-  year={2023}
-}
-
-@inproceedings{bao2022all,
-  title={All are Worth Words: A ViT Backbone for Diffusion Models},
-  author={Bao, Fan and Nie, Shen and Xue, Kaiwen and Cao, Yue and Li, Chongxuan and Su, Hang and Zhu, Jun},
-  booktitle = {CVPR},
-  year={2023}
-}
-```
-
-This implementation is heavily based on the [U-ViT](https://github.com/baofff/U-ViT) code.
+This implementation is heavily based on the [U-ViT](https://github.com/baofff/U-ViT), [Unidiffuser](https://github.com/thu-ml/unidiffuser) code.

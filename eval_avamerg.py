@@ -152,7 +152,7 @@ def define_flag_if_not_exists(flag_type, name, default, help_text):
 
 # 필요한 flags 정의
 define_flag_if_not_exists('string', "nnet_path",
-                          "/home/ivpl-d29/sichoi/Emo/unidiffuser/si_finetuning_2/checkpoint_step_4000.pth",
+                          "/home/ivpl-d29/sichoi/Emo/unidiffuser/si_finetuning_2/leg_checkpoint_step_4000.pth",
                           "The nnet to evaluate.")
 define_flag_if_not_exists('string', "output_path", "out", "dir to write results to")
 define_flag_if_not_exists('string', "prompt", "an elephant under the sea",

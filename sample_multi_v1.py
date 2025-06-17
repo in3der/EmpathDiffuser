@@ -699,7 +699,7 @@ FLAGS = flags.FLAGS
 config_flags.DEFINE_config_file(
     "config", "configs/sample_unidiffuser_v1.py", "Configuration.", lock_config=False)
 #flags.DEFINE_string("nnet_path", "models/uvit_v1.pth", "The nnet to evaluate.")
-flags.DEFINE_string("nnet_path", "/home/ivpl-d29/sichoi/Emo/unidiffuser/si_finetuning_2/checkpoint_step_4000.pth", "The nnet to evaluate.")
+flags.DEFINE_string("nnet_path", "/home/sichoi/unidiffuser/si_finetuning_2/ckpt/checkpoint_step_8000.pth", "The nnet to evaluate.")
 flags.DEFINE_string("output_path", "out", "dir to write results to")
 flags.DEFINE_string("prompt", "an elephant under the sea", "the prompt for text-to-image generation and text variation")
 flags.DEFINE_string("img", "assets/space.jpg", "the image path for image-to-text generation and image variation")
